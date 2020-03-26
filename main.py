@@ -23,6 +23,7 @@ PURCHASE_BUTTON_XPATH = '//*[@id="dieselReactWrapper"]/div/div[4]/div[3]/div/div
 MULTIPLE_EDITIONS_PURCHASE_XPATH = '//*[@id="dieselReactWrapper"]/div/div[4]/div[3]/div/div[4]/div[2]' \
                                    '/div[2]/div[2]/div[2]/div/div[2]/div/button'
 COOKIE_ACCEPT_XPATH = '//*[@id="euCookieAccept"]'
+PLACE_ORDER_BUTTON_XPATH = '//*[@id="purchase-app"]/div/div[4]/div[1]/div[2]/div[5]/div/div/button'
 
 GAME_CARD_CLASS = 'CardGrid-card_57b1694f'
 MATURE_CONTENT_TEXT_CLASS = 'WarningTemplate-messageText_06273162'
@@ -118,4 +119,13 @@ if __name__ == '__main__':
                 browser.find_element_by_xpath(MULTIPLE_EDITIONS_PURCHASE_XPATH).click()
             else:
                 print('Pressing purchase button on', browser.title)
-                purchase_button.click()
+
+                if purchase_button.find_element_by_tag_name('span').text == 'OWNED':
+                    print('Game already owned on', browser.title)
+                    continue
+                else:
+                    purchase_button.click()
+
+            wait.until((EC.presence_of_element_located((By.XPATH, PLACE_ORDER_BUTTON_XPATH))))
+            browser.find_element_by_xpath(PLACE_ORDER_BUTTON_XPATH).click()
+            break
