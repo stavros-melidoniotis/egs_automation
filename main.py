@@ -7,6 +7,7 @@ import secrets
 import platform
 import os
 import webbrowser
+import time
 
 TIMEOUT_IN_SECONDS = 15
 
@@ -24,6 +25,7 @@ MULTIPLE_EDITIONS_PURCHASE_XPATH = '//*[@id="dieselReactWrapper"]/div/div[4]/div
                                    '/div[2]/div[2]/div[2]/div/div[2]/div/button'
 COOKIE_ACCEPT_XPATH = '//*[@id="euCookieAccept"]'
 PLACE_ORDER_BUTTON_XPATH = '//*[@id="purchase-app"]/div/div[4]/div[1]/div[2]/div[5]/div/div/button'
+INCORRECT_RESPONSE_XPATH = '//*[@id="root"]/div/div/div/div/div[2]/div/form/h6'
 
 GAME_CARD_CLASS = 'CardGrid-card_57b1694f'
 MATURE_CONTENT_TEXT_CLASS = 'WarningTemplate-messageText_06273162'
@@ -50,7 +52,11 @@ def detect_user_preferred_browser(os_name):
     return default_browser
 
 
-def login_with_user_credentials(driver, wait):
+def wait_for_element(driver, element):
+    WebDriverWait(driver, TIMEOUT_IN_SECONDS).until(EC.presence_of_element_located((By.XPATH, element)))
+
+
+def login_with_user_credentials(driver):
     username_input = driver.find_element_by_xpath('//*[@id="usernameOrEmail"]')
     password_input = driver.find_element_by_xpath('//*[@id="password"]')
     submit_button = driver.find_element_by_xpath(SUBMIT_LOGIN_BUTTON_XPATH)
@@ -58,7 +64,7 @@ def login_with_user_credentials(driver, wait):
     username_input.send_keys(secrets.username)
     password_input.send_keys(secrets.password)
 
-    wait.until(EC.element_to_be_clickable((By.XPATH, SUBMIT_LOGIN_BUTTON_XPATH)))
+    WebDriverWait(driver, TIMEOUT_IN_SECONDS).until(EC.element_to_be_clickable((By.XPATH, SUBMIT_LOGIN_BUTTON_XPATH)))
     submit_button.click()
 
     return
@@ -75,15 +81,18 @@ if __name__ == '__main__':
         browser = detect_user_preferred_browser('ios')
 
     browser.get(EGS_URL)
-    wait = WebDriverWait(browser, TIMEOUT_IN_SECONDS)
 
     # wait for login form to load
-    wait.until(EC.presence_of_element_located((By.XPATH, LOGIN_FORM_XPATH)))
+    wait_for_element(browser, LOGIN_FORM_XPATH)
 
-    login_with_user_credentials(browser, wait)
+    login_with_user_credentials(browser)
+
+    if browser.find_elements_by_xpath(INCORRECT_RESPONSE_XPATH):
+        browser.refresh()
+        login_with_user_credentials(browser)
 
     # wait for games list to load
-    wait.until(EC.presence_of_element_located((By.XPATH, GAMES_LIST_XPATH)))
+    wait_for_element(browser, GAMES_LIST_XPATH)
 
     games_list = browser.find_element_by_xpath(GAMES_LIST_XPATH).find_elements_by_class_name(GAME_CARD_CLASS)
     original_tab = browser.current_window_handle
@@ -91,13 +100,13 @@ if __name__ == '__main__':
     for game in games_list:
         availability = game.find_element_by_tag_name('span').text
 
+        # open a new tab for each free game
         if availability == 'FREE NOW':
             link = game.find_element_by_tag_name('a').get_attribute('href')
             browser.execute_script('window.open(\'' + link + '\');')
 
-    cookies_accepted = False
+    new_games_acquired = []
 
-    # loop through open tabs
     for tab in browser.window_handles:
         if tab == original_tab:
             browser.close()
@@ -105,12 +114,15 @@ if __name__ == '__main__':
             browser.switch_to.window(tab)
 
             # if mature content warning is present then press continue button
-            if len(browser.find_elements_by_xpath(CONTINUE_BUTTON_XPATH)) > 0:
+            if browser.find_elements_by_xpath(CONTINUE_BUTTON_XPATH):
                 print('Closing mature warning on tab', browser.title)
+                wait_for_element(browser, CONTINUE_BUTTON_XPATH)
                 browser.find_element_by_xpath(CONTINUE_BUTTON_XPATH).click()
 
-            wait.until(EC.presence_of_element_located((By.XPATH, PURCHASE_BUTTON_XPATH)))
+            wait_for_element(browser, PURCHASE_BUTTON_XPATH)
             purchase_button = browser.find_element_by_xpath(PURCHASE_BUTTON_XPATH)
+
+            # accept cookies to avoid them overlapping purchase button
             browser.find_element_by_xpath(COOKIE_ACCEPT_XPATH).click()
 
             if purchase_button.find_element_by_tag_name('span').text == "SEE EDITIONS":
@@ -119,6 +131,7 @@ if __name__ == '__main__':
                 browser.find_element_by_xpath(MULTIPLE_EDITIONS_PURCHASE_XPATH).click()
             else:
                 print('Pressing purchase button on', browser.title)
+                wait_for_element(browser, PURCHASE_BUTTON_XPATH)
 
                 if purchase_button.find_element_by_tag_name('span').text == 'OWNED':
                     print('Game already owned on', browser.title)
@@ -126,6 +139,14 @@ if __name__ == '__main__':
                 else:
                     purchase_button.click()
 
-            wait.until((EC.presence_of_element_located((By.XPATH, PLACE_ORDER_BUTTON_XPATH))))
+            wait_for_element(browser, PLACE_ORDER_BUTTON_XPATH)
             browser.find_element_by_xpath(PLACE_ORDER_BUTTON_XPATH).click()
-            break
+            time.sleep(5)
+            new_games_acquired.append(browser.title)
+            continue
+
+    print('\n\nYou\'ve acquired', len(new_games_acquired), 'new games!\n')
+    for i in range(len(new_games_acquired)):
+        print(i+1, ')', new_games_acquired[i])
+
+    browser.quit()
