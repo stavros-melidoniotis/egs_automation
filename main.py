@@ -2,6 +2,7 @@ from selenium import webdriver
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.by import By
+from apscheduler.schedulers.blocking import BlockingScheduler
 
 import secrets
 import platform
@@ -25,14 +26,15 @@ MULTIPLE_EDITIONS_PURCHASE_XPATH = '//*[@id="dieselReactWrapper"]/div/div[4]/div
 COOKIE_ACCEPT_XPATH = '//*[@id="euCookieAccept"]'
 PLACE_ORDER_BUTTON_XPATH = '//*[@id="purchase-app"]/div/div[4]/div[1]/div[2]/div[5]/div/div/button'
 INCORRECT_RESPONSE_XPATH = '//*[@id="root"]/div/div/div/div/div[2]/div/form/h6'
+LOGIN_CAPTCHA_XPATH = '//*[@id="FunCAPTCHA"]'
 GAME_CARD_CLASS = 'CardGrid-card_57b1694f'
 MATURE_CONTENT_TEXT_CLASS = 'WarningTemplate-messageText_06273162'
 
 
-def detect_user_preferred_browser(os_name):
+def detect_user_preferred_browser(system):
     user_preferred_browser = webbrowser.get(using=None).name
-    print('OS:', os_name, '\nBrowser:', user_preferred_browser)
-    path = os.getcwd() + '/browser_drivers/' + os_name
+    print('OS:', system, '\nBrowser:', user_preferred_browser)
+    path = os.getcwd() + '/browser_drivers/' + system
 
     if user_preferred_browser == 'google-chrome':
         default_browser = webdriver.Chrome(executable_path=path + '/chromedriver')
@@ -65,80 +67,97 @@ def login_with_user_credentials(driver):
 
 
 if __name__ == '__main__':
-    system = platform.system()
+    repeater = BlockingScheduler()
 
-    if system == 'Linux':
-        browser = detect_user_preferred_browser('linux')
-    elif system == 'Windows':
-        browser = detect_user_preferred_browser('windows')
+    @repeater.scheduled_job('interval', days=7)
+    def get_free_games():
+        system = platform.system()
 
-    browser.get(EGS_URL)
-
-    # wait for login form to load
-    wait_for_element(browser, LOGIN_FORM_XPATH)
-
-    login_with_user_credentials(browser)
-
-    if browser.find_elements_by_xpath(INCORRECT_RESPONSE_XPATH):
-        browser.refresh()
-        login_with_user_credentials(browser)
-
-    # wait for games list to load
-    wait_for_element(browser, GAMES_LIST_XPATH)
-
-    games_list = browser.find_element_by_xpath(GAMES_LIST_XPATH).find_elements_by_class_name(GAME_CARD_CLASS)
-    original_tab = browser.current_window_handle
-
-    for game in games_list:
-        availability = game.find_element_by_tag_name('span').text
-
-        # open a new tab for each free game
-        if availability == 'FREE NOW':
-            link = game.find_element_by_tag_name('a').get_attribute('href')
-            browser.execute_script('window.open(\'' + link + '\');')
-
-    new_games_acquired = []
-
-    for tab in browser.window_handles:
-        if tab == original_tab:
-            browser.close()
+        if system == 'Linux':
+            browser = detect_user_preferred_browser(system='linux')
+        elif system == 'Windows':
+            browser = detect_user_preferred_browser(system='windows')
         else:
-            browser.switch_to.window(tab)
+            print(system, 'not supported!')
+            exit(1)
 
-            # if mature content warning is present then press continue button
-            if browser.find_elements_by_xpath(CONTINUE_BUTTON_XPATH):
-                print('Closing mature warning on tab', browser.title)
-                wait_for_element(browser, CONTINUE_BUTTON_XPATH)
-                browser.find_element_by_xpath(CONTINUE_BUTTON_XPATH).click()
+        browser.get(EGS_URL)
 
-            wait_for_element(browser, PURCHASE_BUTTON_XPATH)
-            purchase_button = browser.find_element_by_xpath(PURCHASE_BUTTON_XPATH)
+        # wait for login form to load
+        wait_for_element(browser, LOGIN_FORM_XPATH)
 
-            # accept cookies to avoid them overlapping purchase button
-            browser.find_element_by_xpath(COOKIE_ACCEPT_XPATH).click()
+        keep_in_loop = True
 
-            if purchase_button.find_element_by_tag_name('span').text == "SEE EDITIONS":
-                print('Multiple editions detected on', browser.title)
-                purchase_button.click()
-                browser.find_element_by_xpath(MULTIPLE_EDITIONS_PURCHASE_XPATH).click()
+        while keep_in_loop:
+            login_with_user_credentials(browser)
+
+            if browser.find_elements_by_xpath(INCORRECT_RESPONSE_XPATH) or browser.find_elements_by_xpath(
+                    LOGIN_CAPTCHA_XPATH):
+                print('something detected')
+                browser.refresh()
             else:
-                print('Pressing purchase button on', browser.title)
+                keep_in_loop = False
+                print('continuing')
+
+        # wait for games list to load
+        wait_for_element(browser, GAMES_LIST_XPATH)
+
+        games_list = browser.find_element_by_xpath(GAMES_LIST_XPATH).find_elements_by_class_name(GAME_CARD_CLASS)
+
+        for game in games_list:
+            availability = game.find_element_by_tag_name('span').text
+
+            # open a new tab for each free game
+            if availability == 'FREE NOW':
+                link = game.find_element_by_tag_name('a').get_attribute('href')
+                browser.execute_script('window.open(\'' + link + '\');')
+
+        original_tab = browser.current_window_handle
+        new_games_acquired = []
+
+        for tab in browser.window_handles:
+            if tab == original_tab:
+                browser.close()
+            else:
+                browser.switch_to.window(tab)
+
+                print('\n------------', browser.title, '------------')
+
+                # if mature content warning is present then press continue button
+                if browser.find_elements_by_xpath(CONTINUE_BUTTON_XPATH):
+                    print('- closing mature content warning')
+                    wait_for_element(browser, CONTINUE_BUTTON_XPATH)
+                    browser.find_element_by_xpath(CONTINUE_BUTTON_XPATH).click()
+
                 wait_for_element(browser, PURCHASE_BUTTON_XPATH)
+                purchase_button = browser.find_element_by_xpath(PURCHASE_BUTTON_XPATH)
 
-                if purchase_button.find_element_by_tag_name('span').text == 'OWNED':
-                    print('Game already owned on', browser.title)
-                    continue
-                else:
+                # accept cookies to avoid them overlapping purchase button
+                browser.find_element_by_xpath(COOKIE_ACCEPT_XPATH).click()
+
+                if purchase_button.find_element_by_tag_name('span').text == "SEE EDITIONS":
+                    print('- multiple editions detected')
                     purchase_button.click()
+                    browser.find_element_by_xpath(MULTIPLE_EDITIONS_PURCHASE_XPATH).click()
+                else:
+                    wait_for_element(browser, PURCHASE_BUTTON_XPATH)
 
-            wait_for_element(browser, PLACE_ORDER_BUTTON_XPATH)
-            browser.find_element_by_xpath(PLACE_ORDER_BUTTON_XPATH).click()
-            time.sleep(5)
-            new_games_acquired.append(browser.title)
-            continue
+                    if purchase_button.find_element_by_tag_name('span').text == 'OWNED':
+                        print('- game already owned')
+                        continue
+                    else:
+                        print('- purchasing game')
+                        purchase_button.click()
 
-    print('\n\nYou\'ve acquired', len(new_games_acquired), 'new games!\n')
-    for i in range(len(new_games_acquired)):
-        print(i+1, ')', new_games_acquired[i])
+                wait_for_element(browser, PLACE_ORDER_BUTTON_XPATH)
+                browser.find_element_by_xpath(PLACE_ORDER_BUTTON_XPATH).click()
+                time.sleep(5)
+                new_games_acquired.append(browser.title)
 
-    browser.quit()
+        print('\n\nYou\'ve acquired', len(new_games_acquired), 'new games!\n')
+        for i in range(len(new_games_acquired)):
+            print(i + 1, ')', new_games_acquired[i])
+
+        browser.quit()
+
+    repeater.start()
