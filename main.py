@@ -9,8 +9,7 @@ import os
 import webbrowser
 import time
 
-TIMEOUT_IN_SECONDS = 15
-
+TIMEOUT_IN_SECONDS = 30
 EGS_URL = 'https://www.epicgames.com/id/login?productName=epic-games&lang=en_US&' \
           'redirectUrl=https%3A%2F%2Fwww.epicgames.com%2Fstore%2Fen-US%2Ffree-games&' \
           'client_id=5a6fcd3b82e04f8fa0065253835c5221&noHostRedirect=true'
@@ -26,7 +25,6 @@ MULTIPLE_EDITIONS_PURCHASE_XPATH = '//*[@id="dieselReactWrapper"]/div/div[4]/div
 COOKIE_ACCEPT_XPATH = '//*[@id="euCookieAccept"]'
 PLACE_ORDER_BUTTON_XPATH = '//*[@id="purchase-app"]/div/div[4]/div[1]/div[2]/div[5]/div/div/button'
 INCORRECT_RESPONSE_XPATH = '//*[@id="root"]/div/div/div/div/div[2]/div/form/h6'
-
 GAME_CARD_CLASS = 'CardGrid-card_57b1694f'
 MATURE_CONTENT_TEXT_CLASS = 'WarningTemplate-messageText_06273162'
 
@@ -37,15 +35,11 @@ def detect_user_preferred_browser(os_name):
     path = os.getcwd() + '/browser_drivers/' + os_name
 
     if user_preferred_browser == 'google-chrome':
-        default_browser = webdriver.Chrome(path + '/chromedriver')
+        default_browser = webdriver.Chrome(executable_path=path + '/chromedriver')
     elif user_preferred_browser == 'firefox':
-        default_browser = webdriver.Firefox(path + '/geckodriver')
+        default_browser = webdriver.Firefox(executable_path=path + '/geckodriver')
     elif user_preferred_browser == 'opera':
-        default_browser = webdriver.Opera(path + '/chromedriver')
-    elif user_preferred_browser == 'safari':
-        default_browser = webdriver.Safari(path)
-    elif user_preferred_browser == 'windows-default':
-        default_browser = webdriver.Edge(path)
+        default_browser = webdriver.Opera(executable_path=path + '/operadriver')
     else:
         print('No browser found!')
 
@@ -77,8 +71,6 @@ if __name__ == '__main__':
         browser = detect_user_preferred_browser('linux')
     elif system == 'Windows':
         browser = detect_user_preferred_browser('windows')
-    elif system == 'Darwin':
-        browser = detect_user_preferred_browser('ios')
 
     browser.get(EGS_URL)
 
