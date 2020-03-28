@@ -31,21 +31,27 @@ GAME_CARD_CLASS = 'CardGrid-card_57b1694f'
 MATURE_CONTENT_TEXT_CLASS = 'WarningTemplate-messageText_06273162'
 
 
-def detect_user_preferred_browser(system):
-    user_preferred_browser = webbrowser.get(using=None).name
-    print('OS:', system, '\nBrowser:', user_preferred_browser)
+def create_browser_driver(system, default_browser):
     path = os.getcwd() + '/browser_drivers/' + system
+    print('System:', system, '\nDefault browser:', default_browser, '\nPath:', path)
+    browser_driver = None
 
-    if user_preferred_browser == 'google-chrome':
-        default_browser = webdriver.Chrome(executable_path=path + '/chromedriver')
-    elif user_preferred_browser == 'firefox':
-        default_browser = webdriver.Firefox(executable_path=path + '/geckodriver')
-    elif user_preferred_browser == 'opera':
-        default_browser = webdriver.Opera(executable_path=path + '/operadriver')
-    else:
-        print('No browser found!')
+    if system == 'Linux':
+        if default_browser == 'google-chrome':
+            browser_driver = webdriver.Chrome(executable_path=path + '/chromedriver')
+        elif default_browser == 'firefox':
+            browser_driver = webdriver.Firefox(executable_path=path + '/geckodriver')
+        elif default_browser == 'opera':
+            browser_driver = webdriver.Opera(executable_path=path + '/operadriver')
+    elif system == 'Windows':
+        if default_browser == 'google-chrome':
+            browser_driver = webdriver.Chrome(executable_path=path + '/chromedriver.exe')
+        elif default_browser == 'firefox':
+            browser_driver = webdriver.Firefox(executable_path=path + '/geckodriver.exe')
+        elif default_browser == 'opera':
+            browser_driver = webdriver.Opera(executable_path=path + '/operadriver.exe')
 
-    return default_browser
+    return browser_driver
 
 
 def wait_for_element(driver, element):
@@ -67,41 +73,37 @@ def login_with_user_credentials(driver):
 
 
 if __name__ == '__main__':
-    repeater = BlockingScheduler()
-
-    @repeater.scheduled_job('interval', days=7)
+    # repeater = BlockingScheduler()
+    #
+    # @repeater.scheduled_job('interval', days=7)
     def get_free_games():
-        system = platform.system()
+        browser = create_browser_driver(platform.system(), webbrowser.get().name)
 
-        if system == 'Linux':
-            browser = detect_user_preferred_browser(system='linux')
-        elif system == 'Windows':
-            browser = detect_user_preferred_browser(system='windows')
-        else:
-            print(system, 'not supported!')
+        if browser is None:
+            print('Your system or default browser is not supported!')
             exit(1)
 
         browser.get(EGS_URL)
 
         # wait for login form to load
         wait_for_element(browser, LOGIN_FORM_XPATH)
+        login_with_user_credentials(browser)
 
-        keep_in_loop = True
-
-        while keep_in_loop:
-            login_with_user_credentials(browser)
-
-            if browser.find_elements_by_xpath(INCORRECT_RESPONSE_XPATH) or browser.find_elements_by_xpath(
-                    LOGIN_CAPTCHA_XPATH):
-                print('something detected')
-                browser.refresh()
-            else:
-                keep_in_loop = False
-                print('continuing')
+        # keep_in_loop = True
+        #
+        # while keep_in_loop:
+        #     login_with_user_credentials(browser)
+        #
+        #     if browser.find_elements_by_xpath(INCORRECT_RESPONSE_XPATH) or browser.find_elements_by_xpath(
+        #             LOGIN_CAPTCHA_XPATH):
+        #         print('something detected')
+        #         browser.refresh()
+        #     else:
+        #         keep_in_loop = False
+        #         print('continuing')
 
         # wait for games list to load
         wait_for_element(browser, GAMES_LIST_XPATH)
-
         games_list = browser.find_element_by_xpath(GAMES_LIST_XPATH).find_elements_by_class_name(GAME_CARD_CLASS)
 
         for game in games_list:
@@ -154,10 +156,11 @@ if __name__ == '__main__':
                 time.sleep(5)
                 new_games_acquired.append(browser.title)
 
-        print('\n\nYou\'ve acquired', len(new_games_acquired), 'new games!\n')
+        print('\n\nYou\'ve acquired', len(new_games_acquired), 'new game(s)!\n')
         for i in range(len(new_games_acquired)):
-            print(i + 1, ')', new_games_acquired[i])
+            print(i + 1,')', new_games_acquired[i])
 
         browser.quit()
 
-    repeater.start()
+    # repeater.start()
+    get_free_games()
