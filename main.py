@@ -32,24 +32,26 @@ MATURE_CONTENT_TEXT_CLASS = 'WarningTemplate-messageText_06273162'
 
 
 def create_browser_driver(system, default_browser):
-    path = os.getcwd() + '/browser_drivers/' + system
-    print('System:', system, '\nDefault browser:', default_browser, '\nPath:', path)
+    linux_path = os.getcwd() + '/browser_drivers/' + system
+    windows_path = os.getcwd() + '\\browser_drivers\\' + system
     browser_driver = None
 
     if system == 'Linux':
+        print('System:', system, '\nDefault browser:', default_browser, '\nPath:', linux_path)
         if default_browser == 'google-chrome':
-            browser_driver = webdriver.Chrome(executable_path=path + '/chromedriver')
+            browser_driver = webdriver.Chrome(executable_path=linux_path + '/chromedriver')
         elif default_browser == 'firefox':
-            browser_driver = webdriver.Firefox(executable_path=path + '/geckodriver')
+            browser_driver = webdriver.Firefox(executable_path=linux_path + '/geckodriver')
         elif default_browser == 'opera':
-            browser_driver = webdriver.Opera(executable_path=path + '/operadriver')
+            browser_driver = webdriver.Opera(executable_path=linux_path + '/operadriver')
     elif system == 'Windows':
+        print('System:', system, '\nDefault browser:', default_browser, '\nPath:', windows_path)
         if default_browser == 'google-chrome':
-            browser_driver = webdriver.Chrome(executable_path=path + '/chromedriver.exe')
+            browser_driver = webdriver.Chrome(executable_path=windows_path + '\chromedriver.exe')
         elif default_browser == 'firefox':
-            browser_driver = webdriver.Firefox(executable_path=path + '/geckodriver.exe')
+            browser_driver = webdriver.Firefox(executable_path=windows_path + '\geckodriver.exe')
         elif default_browser == 'opera':
-            browser_driver = webdriver.Opera(executable_path=path + '/operadriver.exe')
+            browser_driver = webdriver.Opera(executable_path=windows_path + '\operadriver.exe')
 
     return browser_driver
 
